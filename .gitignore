@@ -1,0 +1,17 @@
+.dub
+docs.json
+__dummy.html
+docs/
+/packet-sim
+*.so
+*.dylib
+*.dll
+*.a
+*.lib
+*-test-*
+*.lst
+*.exe
+*.o
+*.obj
+*.lst
+*.jsonl
