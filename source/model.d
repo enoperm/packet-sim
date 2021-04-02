@@ -6,6 +6,10 @@ import std.random;
 
 import optional;
 
+public import types;
+
+import costfns;
+
 public:
 @safe:
 
@@ -100,11 +104,14 @@ unittest {
     assert(s.inversions == [1, 0], `no inversion across queues`);
 }
 
-alias PacketCounts = ulong[ulong/* rank */];
-
 interface AdaptationAlgorithm {
     ulong[] adapt(const(ulong[]) currentBounds, const(PacketCounts) byRank, const ulong receivedRank) pure;
 }
+
+interface QueueBoundsInitialization {
+    ulong[] initialBounds(ulong queueCount);
+}
+
 
 struct Algorithm { string name; }
 struct Usage { string text; }
@@ -122,6 +129,7 @@ public:
         return this.bounds.dup;
     }
 }
+
 
 final class PushUpPushDown : AdaptationAlgorithm {
 public:
@@ -154,6 +162,155 @@ public:
     }
 }
 
+final class PerPacket : AdaptationAlgorithm, QueueBoundsInitialization {
+private:
+    CostFunction costOfInversion;
+    ulong maxRank;
+
+    enum Action {
+        None = 0b000,
+
+        DownshiftPre = 0b100,
+        DownshiftSucc = 0b101,
+        UpshiftPre = 0b110,
+        UpshiftSucc = 0b111,
+    }
+
+    static auto isUp(Action a) pure {
+        return a & 0b010;
+    }
+
+    static auto isDown(Action a) pure {
+        return !isUp(a);
+    }
+
+    static auto isSucc(Action a) pure {
+        return a & 0b001;
+    }
+
+    static auto isPre(Action a) pure {
+        return !isSucc(a);
+    }
+
+public:
+    this(string costfn, ulong maxRank) pure {
+        this.maxRank = maxRank;
+        modeSwitch: final switch(costfn) {
+            import std.traits: getSymbolsByUDA;
+            import std.string: format;
+
+            static foreach(cfn; getSymbolsByUDA!(costfns, costfns.Cost)) {
+                pragma(msg, "per-packet cost fn: ", __traits(identifier, cfn));
+                mixin(q{
+                case "%1$s":
+                    this.costOfInversion = cast(CostFunction)&%1$s;
+                    break modeSwitch;
+                }.format(__traits(identifier, cfn)));
+            }
+        }
+    }
+
+    invariant { assert(this.costOfInversion !is null); }
+
+    ulong[] adapt(const(ulong[]) currentBounds, const(PacketCounts) byRank, const ulong receivedRank) pure {
+        import std.traits: EnumMembers;
+        import std.algorithm;
+        import std.array;
+
+        // indices into the currently evaluated bounds for each action
+        enum Pre      = 0;
+        enum Self     = 1;
+        enum Succ     = 2;
+        enum SuccSucc = 3;
+
+        auto targetQueue = currentBounds.lookup(receivedRank).front;
+
+        Optional!(ulong)[4][Action] bounds;
+        Optional!double estimatedBestCost;
+        Action estimatedBest = Action.None;
+
+        static foreach(a; EnumMembers!Action) { bounds.require(a); }
+
+        with(Action) {
+            if(targetQueue > 0) {
+                bounds[None][Pre] = some(currentBounds[targetQueue - 1]);
+            }
+
+            {
+                const tail = currentBounds[targetQueue+1..$].length;
+
+                if(tail >= 2) bounds[None][SuccSucc] = some(currentBounds[targetQueue + 2]);
+                if(tail >= 1) bounds[None][Succ]     = some(currentBounds[targetQueue + 1]);
+            }
+            bounds[None][Self] = some(currentBounds[targetQueue]);
+
+            static foreach(a; EnumMembers!Action) static if(a != None) {
+                bounds[a][] = bounds[None];
+            }
+
+            static foreach(a; EnumMembers!Action) static if(a != None) {{
+                static if(isDown(a)) {
+                    alias modifyBound = (ref b) => (b.empty || b == 0) ? b : --b;
+                } else static if(isUp(a)) {
+                    alias modifyBound = (ref b) => (b.empty || b == ulong.max) ? b : ++b;
+                } else static assert(false, a);
+
+                static if(isPre(a)) {
+                    modifyBound(bounds[a][Self]);
+                } else static if(isSucc(a)) {
+                    modifyBound(bounds[a][Succ]);
+                } else static assert(false, a);
+            }}
+
+            static foreach(a; EnumMembers!Action) {{
+                auto actionEstimates = (bounds, byRank) pure @trusted {
+                    return
+                        [
+                            bounds[0..2],
+                            bounds[1..3],
+                            bounds[2..4],
+                        ]
+                        .map!(b => costOfInversion(b[0], b[1], byRank))
+                        .array;
+                }(bounds[a], byRank);
+
+                const estimatedCost =
+                    actionEstimates
+                    .fold!((a, b) => max(a, b));
+
+                if(estimatedBestCost.empty || estimatedCost < estimatedBestCost.front) {
+                    estimatedBest = a;
+                    estimatedBestCost = some(estimatedCost);
+                }
+            }}
+        }
+
+        auto newBounds = currentBounds.dup;
+
+        auto change = bounds[estimatedBest];
+        auto tail = newBounds[targetQueue+1..$].length;
+        if(!change[Pre].empty)      newBounds[targetQueue - 1] = change[Pre].front;
+                                    newBounds[targetQueue - 0] = change[Self].front;
+        if(!change[Succ].empty)     newBounds[targetQueue + 1] = change[Succ].front;
+        if(!change[SuccSucc].empty) newBounds[targetQueue + 2] = change[SuccSucc].front;
+
+        return newBounds;
+    }
+
+    ulong[] initialBounds(ulong queueCount) {
+        import std.conv: to;
+        import std.math: ceil;
+        auto step = this.maxRank.to!double / queueCount;
+        auto bounds =
+            0.only.chain(
+                iota(1, queueCount)
+                .map!(i => ceil(i * step).to!ulong)
+            )
+            .array;
+        return bounds;
+    }
+}
+
 
 @Algorithm("static")
 @Usage(
@@ -182,6 +339,22 @@ Instantiation: <name>:pupd
 AdaptationAlgorithm setup_pupd(string spec) pure {
     cast(void)spec; // not used by pupd
     return new PushUpPushDown();
+};
+
+
+@Algorithm("per-packet")
+@Usage(
+`
+This adaptation algorithm may use various cost functions,
+and requires the maximum received rank as a parameter.
+Instantiation: <name>:perpacket,(exact|upper_estimate),${max_rank}
+`)
+AdaptationAlgorithm setup_per_packet(string spec) pure {
+    import std.conv: to;
+    import std.exception: enforce;
+    auto pieces = spec.split(',');
+    enforce(pieces.length == 2, `invalid arguments`);
+    return new PerPacket(pieces.front, pieces.back.to!ulong);
 };
 
 version(unittest) {

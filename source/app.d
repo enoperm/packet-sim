@@ -45,6 +45,12 @@ void main(string[] args) {
         output.put(s.serializeToJson);
     }
 
+    foreach(alg; config.algorithms.byKey) {
+        auto impl = config.algorithms[alg];
+        if(auto bi = cast(QueueBoundsInitialization)impl) {
+            bounds[alg] = bi.initialBounds(config.queueCount);
+        }
+    }
 
     {
         auto output = stdout.lockingTextWriter;
@@ -153,7 +159,7 @@ static this() {
         auto usage = `no usage information available`;
         if(hasUDA!(alg, model.Usage)) {
             usage = getUDAs!(alg, model.Usage)[$-1].text;
-        } 
+        }
 
         a[name] = AlgorithmInfo(
             name,
