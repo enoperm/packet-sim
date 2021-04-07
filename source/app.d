@@ -43,6 +43,7 @@ void main(string[] args) {
             countsByRank: countsByRank,
         };
         output.put(s.serializeToJson);
+        output.put('\n');
     }
 
     foreach(alg; config.algorithms.byKey) {
@@ -55,7 +56,6 @@ void main(string[] args) {
     {
         auto output = stdout.lockingTextWriter;
         foreach(alg; config.algorithms.byKey) emitState(output, 0, alg);
-        output.put('\n');
     }
 
     auto incoming =
@@ -80,7 +80,6 @@ void main(string[] args) {
         foreach(alg; config.algorithms.byKey) {
             emitState(output, time, alg);
         }
-        output.put('\n');
     }
 }
 
