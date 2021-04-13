@@ -16,7 +16,7 @@ enum Cost;
 
 @Cost
 auto upper_estimate(Optional!ulong lower, Optional!ulong upper, const PacketCounts byRank) @safe pure {
-    if(lower.empty || upper.empty) return double.infinity;
+    if(lower.empty || upper.empty) return -double.infinity;
     const total = byRank.byValue.sum;
     const P_i =
         iota(lower.front, upper.front)
@@ -28,7 +28,7 @@ auto upper_estimate(Optional!ulong lower, Optional!ulong upper, const PacketCoun
 
 @Cost
 auto exact(Optional!ulong lower, Optional!ulong upper, const PacketCounts byRank) @safe pure {
-    if(lower.empty || upper.empty) return double.infinity;
+    if(lower.empty || upper.empty) return -double.infinity;
 
     const total = byRank.byValue.sum;
     const queueCounts =
