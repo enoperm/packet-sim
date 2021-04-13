@@ -28,20 +28,27 @@ void main(string[] args) {
     // TODO/IMPROVE?: current output contains a lot of redundant information, but it is easy to process
     void emitState(R, S)(R output, ulong t, S selector) {
         import asdf: serializeToJson;
+        import std.traits: FieldNameTuple;
         static struct ReportedState {
             ulong time;
             string algorithm;
-            SimState state;
             ulong[] bounds;
-            ulong[ulong] countsByRank;
+            static foreach(memName; FieldNameTuple!SimState) {
+                mixin(q{
+                    %s %s;
+                }.format(typeof(mixin(q{SimState.%s}.format(memName))).stringof, memName));
+            }
         }
         ReportedState s = {
             time: t,
             algorithm: selector,
-            state: simStates[selector],
             bounds: bounds[selector],
-            countsByRank: countsByRank,
         };
+        static foreach(memName; FieldNameTuple!SimState) {
+            mixin(q{
+                s.%1$s = simStates[selector].%1$s;
+            }.format(memName));
+        }
         output.put(s.serializeToJson);
         output.put('\n');
     }
