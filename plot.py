@@ -1,17 +1,15 @@
 #!/usr/bin/env python3
 
-import pandas as pd
-import numpy as np
-import matplotlib.pyplot as plt
-
-
 def main(args):
+    import pandas as pd
+    import numpy as np
+    import matplotlib.pyplot as plt
+
     source_file = args[1]
+    destination_file = args[2]
 
     whole_by_alg = {}
-    min_set = None
 
-    # TODO: use getopt
     data_chunked = pd.read_json(source_file, lines=True, chunksize=100000)
     for chunk in data_chunked:
         chunk['total_inversions'] = np.vectorize(sum)(chunk['inversions'])
@@ -22,30 +20,29 @@ def main(args):
             lst = whole_by_alg.get(alg, list())
             lst.extend(alg_chunk['total_inversions'].values)
             whole_by_alg[alg] = lst
-            if not min_set or lst[-1] < whole_by_alg[min_set][-1]:
-                min_set = alg
 
-    def delta_to_min(dataset):
-        min_data = whole_by_alg[min_set]
-        for (i, min_i) in zip(dataset, min_data):
-            yield i - min_i
-
-    whole_by_alg = {
-        alg: [*delta_to_min(data)]
-        for (alg, data)
-        in whole_by_alg.items()
-    }
-
-    for (alg, data) in whole_by_alg.items():
-        print(f'[{source_file}] alg: {alg} => {data[-1]}')
-        plt.plot(range(len(data)), data, label=alg)
+    linestyles = ('solid', 'dotted', 'dashed', 'dashdot')
 
     plt.title(source_file)
-    plt.legend()
+    plt.xlabel('packets processed')
+    plt.ylabel('inversion count')
+    plt.figure(figsize=(10, 5))
 
-    plt.show()
+    for (i, (alg, data)) in enumerate(whole_by_alg.items()):
+        plt.plot(
+            range(len(data)), data,
+            label=alg,
+            alpha=0.6, linestyle=linestyles[i % 4]
+        )
+
+    plt.legend()
+    plt.savefig(destination_file)
 
 
 if __name__ == '__main__':
-    from sys import argv
+    from sys import argv, stderr
+    if len(argv) < 3:
+        print(f'usage: {argv[0]} <sim-data> <saved-plot>', file=stderr)
+        exit(1)
+
     main(argv)
