@@ -10,10 +10,11 @@ fi
 
 nqueues="${1:?must set number of queues}"
 specs="${2:?must configure algorithms to test}"
+root=$(readlink -f "$(dirname "${0}")")
 
 parallel \
     -I{} -n1 \
     -a "${specs}" \
     --tee --pipe --line-buffer \
     </dev/stdin \
-    ./packet-sim "${nqueues}" {}
+    "$root"/packet-sim "${nqueues}" {}
