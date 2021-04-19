@@ -80,11 +80,11 @@ def main(config) -> None:
             with open(output_file, 'w') as output:
                 print('pupd:pupd', file=output)
                 print(
-                    'pp-exact-{model_name_suffix}:per-packet,exact,{n-1}',
+                    f'pp-exact-{model_name_suffix}:per-packet:exact,{n-1}',
                     file=output
                 )
                 print(
-                    'pp-estimate-{model_name_suffix}:per-packet,upper_estimate,{n-1}',
+                    f'pp-estimate-{model_name_suffix}:per-packet:upper_estimate,{n-1}',
                     file=output
                 )
 
