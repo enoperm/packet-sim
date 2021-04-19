@@ -1,0 +1,4 @@
+[submodule "offline-model"]
+	path = offline-model
+	url = git@github.com:enoperm/offline-model.git
+	branch = master
