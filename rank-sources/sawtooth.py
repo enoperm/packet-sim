@@ -2,7 +2,6 @@
 
 
 from sys import argv
-from random import random
 
 max_rank = int(argv[1])
 packet_count = int(argv[2])

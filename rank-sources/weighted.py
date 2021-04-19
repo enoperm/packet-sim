@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
 from sys import argv
-from random import random
+from rng import rng
 
 relative_weights = [int(w) for w in argv[1].split(',')]
 total_weight = sum(relative_weights)
@@ -22,8 +22,9 @@ bounds = [
     in enumerate(probabilities)
 ]
 
+random = rng()
 for i in range(packet_count):
-    rand_value = random()
+    rand_value = random.random()
     for (mb, rank) in bounds:
         if rand_value <= mb:
             print(rank)
