@@ -14,6 +14,8 @@ void main(string[] args) {
     PacketCounts countsByRank;
     countsByRank[0] = 0; // force init AA to make sure initial emitstate does not contain nulls
 
+    auto sampleInterval = environment.get("SAMPLE_INTERVAL", "1").to!ulong;
+
     auto simStates =
         config.algorithms
         .byKey
@@ -84,8 +86,10 @@ void main(string[] args) {
         }
 
         auto output = stdout.lockingTextWriter;
-        foreach(alg; config.algorithms.byKey) {
-            emitState(output, time, alg);
+        if(time % sampleInterval == 0) {
+            foreach(alg; config.algorithms.byKey) {
+                emitState(output, time, alg);
+            }
         }
     }
 }
