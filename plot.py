@@ -18,25 +18,33 @@ def main(args):
         for (alg, alg_chunk) in by_alg:
             alg_chunk = alg_chunk.sort_values('time')
             lst = whole_by_alg.get(alg, list())
-            lst.extend(alg_chunk['total_inversions'].values)
+            lst.extend(
+                zip(
+                    alg_chunk['time'].values,
+                    alg_chunk['total_inversions'].values
+                )
+            )
             whole_by_alg[alg] = lst
 
     linestyles = ('solid', 'dotted', 'dashed', 'dashdot')
 
-    plt.title(source_file)
-    plt.xlabel('packets processed')
-    plt.ylabel('inversion count')
-    plt.figure(figsize=(10, 5))
+    fig = plt.figure(figsize=(10, 5))
+    ax = fig.add_subplot(111)  # this feels like a weird design decision
+    ax.set_title(source_file)
+    ax.set_xlabel('packets processed')
+    ax.set_ylabel('inversion count')
 
     for (i, (alg, data)) in enumerate(whole_by_alg.items()):
-        plt.plot(
-            range(len(data)), data,
+        time = [t for (t, _) in data]
+        inversions = [i for (_, i) in data]
+        ax.plot(
+            time, inversions,
             label=alg,
             alpha=0.6, linestyle=linestyles[i % 4]
         )
 
-    plt.legend()
-    plt.savefig(destination_file)
+    ax.legend()
+    fig.savefig(destination_file)
 
 
 if __name__ == '__main__':
