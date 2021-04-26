@@ -19,7 +19,7 @@ benchmark() {
     max_rank=$(grep -Po '\d+(?=r)' <<< "${benchfile}")
     max_rank=$(( max_rank - 1 ))
 
-    ../eval-parallel.sh "${queue_count}" "${benchfile}" < <("${@}" "${queue_count}" "${packet_count}") > "${outfile}"
+    ../eval-parallel.sh "${queue_count}" "${benchfile}" < <("${@}" "${max_rank}" "${packet_count}") > "${outfile}"
 }
 
 main() {

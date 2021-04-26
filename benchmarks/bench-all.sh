@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 
 export RNG_SEED=42
+export SAMPLE_INTERVAL=10000
 
 # invocation:
 # directory with txt files, used by GNU parallel to invoke the simulator,
