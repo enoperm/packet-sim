@@ -79,14 +79,14 @@ def main(config) -> None:
 
             with open(output_file, 'w') as output:
                 print('pupd:pupd', file=output)
-                print(
-                    f'pp-exact-{model_name_suffix}:per-packet:exact,{n-1}',
-                    file=output
-                )
-                print(
-                    f'pp-estimate-{model_name_suffix}:per-packet:upper_estimate,{n-1}',
-                    file=output
-                )
+                # print(
+                #     f'pp-exact-{model_name_suffix}:per-packet:exact,{n-1}',
+                #     file=output
+                # )
+                # print(
+                #     f'pp-estimate-{model_name_suffix}:per-packet:upper_estimate,{n-1}',
+                #     file=output
+                # )
 
                 d = distribution(ranks=n)
                 offline_distribution_parameters = [
