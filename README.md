@@ -24,7 +24,7 @@ To list the currently available algorithms, you may use
 ./packet-sim --long-help
 ```
 
-The generic format is `{instance-name}:{algorithm-name}{,algorithm-config}`
+The generic format is `{instance-name}:{algorithm-name}{:algorithm-config}`
 Of those, only `algorithm-config` is optional.
 
 * `instance-name` is how the configured algorithm instance will be named on the output.
