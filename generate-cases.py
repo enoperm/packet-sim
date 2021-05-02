@@ -78,7 +78,7 @@ def main(config) -> None:
             output_file = f'{out_dir}/bench_{model_name_suffix}.txt'
 
             with open(output_file, 'w') as output:
-                print('pupd:pupd', file=output)
+                print(f'pupd-{model_name_suffix}:pupd', file=output)
                 # print(
                 #     f'pp-exact-{model_name_suffix}:per-packet:exact,{n-1}',
                 #     file=output
