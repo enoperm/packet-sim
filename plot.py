@@ -32,7 +32,7 @@ def main(args):
     ax = fig.add_subplot(111)  # this feels like a weird design decision
     ax.set_title(source_file)
     ax.set_xlabel('packets processed')
-    ax.set_ylabel('inversion count')
+    ax.set_ylabel('sum of inversion magnitudes')
 
     for (i, (alg, data)) in enumerate(whole_by_alg.items()):
         time = [t for (t, _) in data]

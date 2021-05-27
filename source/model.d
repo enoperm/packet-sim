@@ -71,8 +71,10 @@ in(lower_bounds.zip(lower_bounds.dropOne).all!(pair => pair[0] <= pair[1]), `bou
 
     SimState next = sim;
     with(next) {
-        const inversionHappened = received[target] > 0 && rank < lastInQueue[target];
-        inversions[target] += inversionHappened ? 1 : 0;
+        const diff =
+            lastInQueue[target] > rank && received[target] ?
+            lastInQueue[target] - rank : 0;
+        inversions[target] += diff;
         lastInQueue[target] = rank;
         received[target] += 1;
     }
@@ -93,15 +95,14 @@ unittest {
     s = s.receivePacket(bounds, 3);
     s = s.receivePacket(bounds, 1);
 
-    assert(s.inversions == [1, 0], `inversion within queue`);
+    assert(s.inversions == [2, 0], `inversion within queue`);
 
-    // TODO: needs to be redone to support both edge and level triggered inversion tracking.
     s = s.receivePacket(bounds, 1);
-    assert(s.inversions == [1, 0], `further packets of same rank do not count as individual inversion`);
+    assert(s.inversions == [2, 0], `further packets of same rank do not count as individual inversion`);
 
     s = s.receivePacket(bounds, 4);
     s = s.receivePacket(bounds, 1);
-    assert(s.inversions == [1, 0], `no inversion across queues`);
+    assert(s.inversions == [2, 0], `no inversion across queues`);
 }
 
 interface AdaptationAlgorithm {
@@ -317,7 +318,7 @@ public:
 `
 An "adaptation algorithm" that always keeps queue bounds at their initially configured values.
 This adaptation algorithm requires you to configure queue bounds manually.
-Instantiation: <name>:static,${queue_bounds}
+Instantiation: <name>:static:${queue_bounds}
     where ${queue_bounds} is a comma-separated list of bounds.
     example: 1,2,4
 
@@ -347,7 +348,7 @@ AdaptationAlgorithm setup_pupd(string spec) pure {
 `
 This adaptation algorithm may use various cost functions,
 and requires the maximum received rank as a parameter.
-Instantiation: <name>:perpacket,(exact|upper_estimate),${max_rank}
+Instantiation: <name>:perpacket:(exact|upper_estimate),${max_rank}
 `)
 AdaptationAlgorithm setup_per_packet(string spec) pure {
     import std.conv: to;
