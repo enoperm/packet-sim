@@ -27,9 +27,7 @@ struct Q(ulong N) {
         enum K = BigInt(1) << (N - 1);
 
         auto storage = this.storage;
-        static if(op != "/") {
-            mixin(`storage = storage ` ~ op ~ ` other.storage;`);
-        }
+        static if(op != "/") storage = storage.opBinary!op(other.storage);
 
         static if(op == "*") {
             storage += K;
@@ -42,11 +40,8 @@ struct Q(ulong N) {
 
             storage <<= N;
 
-            if(!!sigLhs == !!sigRhs) {
-                storage += (other.storage >> 1);
-            } else {
-                storage -= (other.storage >> 1);
-            }
+            if(!!sigLhs == !!sigRhs) { storage += (other.storage >> 1); }
+            else { storage -= (other.storage >> 1); }
             storage /= other.storage;
         }
 
@@ -59,7 +54,7 @@ struct Q(ulong N) {
     auto opBinary(string op, T)(const ref T other) if(!isInstanceOf!(Q, T)) {
         import std.conv: to;
         auto asQ = Q(T);
-        mixin(`return this ` ~ op ~ ` asQ;`);
+        return this.opBinary!op(asQ);
     }
 
     public auto asInteger() {
