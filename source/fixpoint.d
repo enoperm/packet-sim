@@ -77,8 +77,6 @@ struct Q(ulong N) {
         enum delta = Q(delta);
         return abs(this.storage - other.storage) <= delta.storage;
     }
-
-    alias asInteger this;
 }
 
 alias Q16 = Q!16;
