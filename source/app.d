@@ -25,7 +25,7 @@ void main(string[] args) {
     auto bounds =
         config.algorithms
         .byKey
-        .map!(alg => tuple(alg, 0UL.repeat(config.queueCount).array)).assocArray;
+        .map!(alg => tuple(alg, 0L.repeat(config.queueCount).array)).assocArray;
 
     // TODO/IMPROVE?: current output contains a lot of redundant information, but it is easy to process
     void emitState(R, S)(R output, ulong t, S selector) {
@@ -34,7 +34,7 @@ void main(string[] args) {
         static struct ReportedState {
             ulong time;
             string algorithm;
-            ulong[] bounds;
+            long[] bounds;
             static foreach(memName; FieldNameTuple!SimState) {
                 mixin(q{
                     %s %s;

@@ -14,9 +14,10 @@ public:
 @safe:
 
 struct SimState {
-    ulong[] inversions;
-    ulong[] lastInQueue;
-    ulong[] received;
+    long[] sumOfInversions;
+    long[] inversions;
+    long[] lastInQueue;
+    long[] received;
 
     this(size_t queue_count) {
         static foreach(fname; __traits(allMembers, typeof(this))) {{
@@ -27,22 +28,23 @@ struct SimState {
     }
 }
 
-auto lookup(const(ulong[]) lower_bounds, const(ulong) rank)
+auto lookup(const(long[]) lower_bounds, const(long) rank)
 in(lower_bounds.length > 0)
 out(index; index.empty || index.front < lower_bounds.length && index.front >= 0)
 out(index; index.empty || lower_bounds[index.front] <= rank)
 {
+    import std.conv: to;
     foreach(i, const b; lower_bounds.enumerate.retro) if(b <= rank) {
-        return some(i);
+        return some(i.to!long);
     }
-    return no!size_t;
+    return no!long;
 }
 
 version(unittest)
 @("queue lookup returns no index when no existing queue could accept the packet")
 unittest
 {
-    const bounds = [2UL, 8];
+    const bounds = [2L, 8];
     const found = bounds.lookup(1);
     assert(found.empty);
 }
@@ -52,29 +54,30 @@ version(unittest)
 unittest
 {
     import std.algorithm: map;
-    const bounds = [2UL, 8];
+    const bounds = [2L, 8];
     const expected = chain(
-        no!ulong .repeat(2),
-        some(0UL).repeat(6),
-        some(1UL).repeat(2),
+        no!long .repeat(2),
+        some(0L).repeat(6),
+        some(1L).repeat(2),
     ).array;
     const got = iota(10).map!(p => bounds.lookup(p)).array;
 
     assert(expected == got);
 }
 
-SimState receivePacket(SimState sim, const(ulong[]) lower_bounds, ulong rank) pure @safe
+SimState receivePacket(SimState sim, const(long[]) lower_bounds, long rank) pure @safe
 in(lower_bounds.length > 0, `some bounds shall be given`)
 in(lower_bounds.zip(lower_bounds.dropOne).all!(pair => pair[0] <= pair[1]), `bounds shall be in increasing order`)
 {
-    const target = lower_bounds.lookup(rank).or(some(0UL)).front;
+    const target = lower_bounds.lookup(rank).or(some(0L)).front;
 
     SimState next = sim;
     with(next) {
         const diff =
             lastInQueue[target] > rank && received[target] ?
             lastInQueue[target] - rank : 0;
-        inversions[target] += diff;
+        sumOfInversions[target] += diff;
+        if(diff) ++inversions[target];
         lastInQueue[target] = rank;
         received[target] += 1;
     }
@@ -84,44 +87,50 @@ in(lower_bounds.zip(lower_bounds.dropOne).all!(pair => pair[0] <= pair[1]), `bou
 version(unittest)
 @("SimState.receivePacket tracks inversions")
 unittest {
-    const bounds = [2UL, 4];
+    const bounds = [2L, 4];
     auto s = SimState(bounds.length);
 
     s = s.receivePacket(bounds, 0);
     s = s.receivePacket(bounds, 1);
 
     assert(s.inversions == [0, 0], `no inversion within queue`);
+    assert(s.sumOfInversions == [0, 0], `no inversion within queue`);
 
     s = s.receivePacket(bounds, 3);
     s = s.receivePacket(bounds, 1);
 
-    assert(s.inversions == [2, 0], `inversion within queue`);
+    assert(s.inversions == [1, 0], `inversion within queue`);
+    assert(s.sumOfInversions == [2, 0], `inversion within queue`);
 
     s = s.receivePacket(bounds, 1);
-    assert(s.inversions == [2, 0], `further packets of same rank do not count as individual inversion`);
+
+    assert(s.inversions == [1, 0], `further packets of same rank do not count as individual inversion`);
+    assert(s.sumOfInversions == [2, 0], `further packets of same rank do not count as individual inversion`);
 
     s = s.receivePacket(bounds, 4);
     s = s.receivePacket(bounds, 1);
-    assert(s.inversions == [2, 0], `no inversion across queues`);
+
+    assert(s.inversions == [1, 0], `no inversion across queues`);
+    assert(s.sumOfInversions == [2, 0], `no inversion across queues`);
 }
 
 interface AdaptationAlgorithm {
-    ulong[] adapt(const(ulong[]) currentBounds, const(PacketCounts) byRank, const ulong receivedRank, in SimState previousState, const ulong time);
+    long[] adapt(const(long[]) currentBounds, const(PacketCounts) byRank, const long receivedRank, in SimState previousState, const ulong time);
 }
 
 interface QueueBoundsInitialization {
-    ulong[] initialBounds(ulong queueCount);
+    long[] initialBounds(long queueCount);
 }
 
 mixin template UniformBoundsInitialization(alias maxRank) {
-    ulong[] initialBounds(ulong queueCount) {
+    long[] initialBounds(long queueCount) {
         import std.conv: to;
         import std.math: ceil;
         auto step = maxRank(this).to!double / queueCount;
         auto bounds =
             0.only.chain(
                 iota(1, queueCount)
-                .map!(i => ceil(i * step).to!ulong)
+                .map!(i => ceil(i * step).to!long)
             )
             .array;
         return bounds;
@@ -134,13 +143,13 @@ struct Usage { string text; }
 
 final class Static : AdaptationAlgorithm {
 private:
-    const(ulong[]) bounds;
+    const(long[]) bounds;
 public:
-    this(ulong[] bounds) pure {
+    this(long[] bounds) pure {
         this.bounds = bounds;
     }
 
-    ulong[] adapt(const(ulong[]) currentBounds, const(PacketCounts) byRank, const ulong receivedRank, in SimState previousState, const ulong time) pure {
+    long[] adapt(const(long[]) currentBounds, const(PacketCounts) byRank, const long receivedRank, in SimState previousState, const ulong time) pure {
         return this.bounds.dup;
     }
 }
@@ -148,7 +157,7 @@ public:
 
 final class PushUpPushDown : AdaptationAlgorithm {
 public:
-    ulong[] adapt(const(ulong[]) currentBounds, const(PacketCounts) byRank, const ulong receivedRank, in SimState previousState, const ulong time) pure {
+    long[] adapt(const(long[]) currentBounds, const(PacketCounts) byRank, const long receivedRank, in SimState previousState, const ulong time) pure {
         import std.algorithm;
         import std.array;
 
@@ -161,7 +170,7 @@ public:
             foreach(ref b; bounds) b -= cost;
         }
 
-        auto pushUp(ulong target) {
+        auto pushUp(long target) {
             pragma(inline, true);
             bounds[target] = receivedRank;
         }
@@ -179,19 +188,21 @@ public:
 
 final class SpringInversionHeuristic : AdaptationAlgorithm, QueueBoundsInitialization {
 private:
-    ulong maxRank;
-    ulong sampleSize;
-    double springConstant;
-    ulong[] previous;
+    long maxRank;
+    long sampleSize;
+    double alpha;
+
+    long[] previous;
+    double[] previousDelta;
 
 public:
-    this(ulong maxRank, ulong sampleSize, double springConstant) pure {
+    this(long maxRank, long sampleSize, double alpha) pure {
         this.maxRank = maxRank;
         this.sampleSize = sampleSize;
-        this.springConstant = springConstant;
+        this.alpha = alpha;
     }
 
-    ulong[] adapt(const(ulong[]) currentBounds, const(PacketCounts) byRank, const ulong receivedRank, in SimState previousState, const ulong time) {
+    long[] adapt(const(long[]) currentBounds, const(PacketCounts) byRank, const long receivedRank, in SimState previousState, const ulong time) {
         import std.conv: to;
         import std.algorithm;
         import std.array;
@@ -201,18 +212,24 @@ public:
         auto bounds = currentBounds.dup;
 
         if(time % sampleSize) return bounds;
-
         scope(exit)
-            previous =
+            this.previous =
                 previousState
                 .inversions
                 .dup;
 
         if(previous.empty)
-            previous =
+            this.previous =
                 previousState
                 .inversions
-                .map!(_ => 0UL)
+                .map!(_ => 0L)
+                .array;
+
+        if(previousDelta.empty)
+            this.previousDelta =
+                previousState
+                .inversions
+                .map!(_ => 0.0)
                 .array;
 
         auto delta =
@@ -220,22 +237,41 @@ public:
             .inversions
             .zip(this.previous)
             .map!(tup => tup[0] - tup[1])
+            .map!(to!double)
+            .zip(this.previousDelta)
+            // (1 - \alpha) * k_{t}(i-1) + \alpha * k_{t}(i)
+            .map!(tup => (1 - this.alpha) * tup[1] + this.alpha * tup[0])
             .array;
+
+        scope(exit) this.previousDelta = delta;
 
         auto forces =
-            delta
-            .zip(delta[1..$])
-            .map!(tup => tup[1] - tup[0]) // k_{i+1} - k_{i}
-            .map!(x => -x * this.springConstant)
-            .array;
+            delta.front.only
+            .chain(delta)
+            .chain(delta.back.only);
+
+        auto displacement =
+            forces
+            .zip(forces.dropOne)
+            .map!(tup => tup[1] - tup[0]) // S_{i+1}(r) - S_{i}(l)
+        ;
+
+        debug {
+            import std;
+            stderr.writeln(" > ", bounds);
+            stderr.writeln("#> ", previousState.inversions);
+            stderr.writeln("~> ", delta);
+            stderr.writeln("+> ", forces);
+            stderr.writeln("~~ ", displacement);
+        }
 
         // do note that the lowest queue bound is always zero,
-        bounds[1..$] =
-            bounds[1..$]
-            .zip(forces)
-            .map!(tup => tup[0] + tup[1])
-            .map!(b => max(b, 1f))
-            .map!(to!ulong)
+        bounds[1..$-1] =
+            bounds[1..$-1]
+            .zip(displacement)
+            .map!(tup => tup[0] + tup[1] * 0.000000000000001)
+            .map!(b => min(b, this.maxRank).max(1.0))
+            .map!(to!long)
             .array;
         bounds[0] = 0;
 
@@ -252,17 +288,17 @@ public:
 
 final class ApproximateBalancedBuckets : AdaptationAlgorithm, QueueBoundsInitialization {
 private:
-    ulong maxRank;
-    ulong sampleSize;
+    long maxRank;
+    long sampleSize;
     PacketCounts previous;
 
 public:
-    this(ulong maxRank, ulong sampleSize) pure {
+    this(long maxRank, long sampleSize) pure {
         this.maxRank = maxRank;
         this.sampleSize = sampleSize;
     }
 
-    ulong[] adapt(const(ulong[]) currentBounds, const(PacketCounts) byRank, const ulong receivedRank, in SimState previousState, const ulong time) {
+    long[] adapt(const(long[]) currentBounds, const(PacketCounts) byRank, const long receivedRank, in SimState previousState, const ulong time) {
         import std.conv: to;
         import std.algorithm;
         import std.array;
@@ -274,7 +310,7 @@ public:
             previous =
                 byRank
                 .byKey
-                .map!(k => tuple(k, byRank[k].to!ulong))
+                .map!(k => tuple(k, byRank[k].to!long))
                 .assocArray;
 
         PacketCounts delta;
@@ -285,10 +321,10 @@ public:
         // The actual implementation would maintain its own state,
         // but this simulator already keeps track of all the information we need,
         // so let's convert from that instead.
-        auto sampled = new ulong[currentBounds.length*2];
+        auto sampled = new long[currentBounds.length*2];
         auto receivedRanks = delta.byKey.array.sort;
 
-        alias T = Tuple!(ulong, "lower", ulong, "upper");
+        alias T = Tuple!(long, "lower", long, "upper");
         auto buckets =
             currentBounds
             .zip(currentBounds[1..$].chain(only(this.maxRank)))
@@ -307,7 +343,7 @@ public:
             .cache;
 
         foreach(rank; receivedRanks) {
-            ulong bucket;
+            long bucket;
             T bucketBounds;
 
             assert(!buckets.empty);
@@ -338,7 +374,7 @@ public:
 final class PerPacket : AdaptationAlgorithm, QueueBoundsInitialization {
 private:
     CostFunction costOfInversion;
-    ulong maxRank;
+    long maxRank;
 
     enum Action {
         None = 0b000,
@@ -366,7 +402,7 @@ private:
     }
 
 public:
-    this(string costfn, ulong maxRank) pure {
+    this(string costfn, long maxRank) pure {
         this.maxRank = maxRank;
         modeSwitch: final switch(costfn) {
             import std.traits: getSymbolsByUDA;
@@ -384,7 +420,7 @@ public:
 
     invariant { assert(this.costOfInversion !is null); }
 
-    ulong[] adapt(const(ulong[]) currentBounds, const(PacketCounts) byRank, const ulong receivedRank, in SimState previousState, const ulong time) pure {
+    long[] adapt(const(long[]) currentBounds, const(PacketCounts) byRank, const long receivedRank, in SimState previousState, const ulong time) pure {
         import std.traits: EnumMembers;
         import std.algorithm;
         import std.array;
@@ -397,7 +433,7 @@ public:
 
         auto targetQueue = currentBounds.lookup(receivedRank).front;
 
-        Optional!(ulong)[4][Action] bounds;
+        Optional!(long)[4][Action] bounds;
         Optional!double estimatedBestCost;
         Action estimatedBest = Action.None;
 
@@ -424,7 +460,7 @@ public:
                 static if(isDown(a)) {
                     alias modifyBound = (ref b) => (b.empty || b == 0) ? b : --b;
                 } else static if(isUp(a)) {
-                    alias modifyBound = (ref b) => (b.empty || b == ulong.max) ? b : ++b;
+                    alias modifyBound = (ref b) => (b.empty || b == long.max) ? b : ++b;
                 } else static assert(false, a);
 
                 static if(isPre(a)) {
@@ -488,7 +524,7 @@ AdaptationAlgorithm setup_static(string spec) pure {
     import std.algorithm: map;
     import std.conv: to;
     import std.string: strip;
-    return new Static(spec.split(',').map!strip.map!(to!ulong).array);
+    return new Static(spec.split(',').map!strip.map!(to!long).array);
 }
 
 @Algorithm("pupd")
@@ -515,7 +551,7 @@ AdaptationAlgorithm setup_per_packet(string spec) pure {
     import std.exception: enforce;
     auto pieces = spec.split(',');
     enforce(pieces.length == 2, `invalid arguments`);
-    return new PerPacket(pieces.front, pieces.back.to!ulong);
+    return new PerPacket(pieces.front, pieces.back.to!long);
 }
 
 @Algorithm("abb")
@@ -531,29 +567,21 @@ AdaptationAlgorithm setup_abb(string spec) pure {
     import std.exception: enforce;
     auto pieces = spec.split(',');
     enforce(pieces.length == 2, `invalid arguments`);
-    return new ApproximateBalancedBuckets(pieces.front.to!ulong, pieces.back.to!ulong);
+    return new ApproximateBalancedBuckets(pieces.front.to!long, pieces.back.to!long);
 }
 
 @Algorithm("springh-inversion")
 @Usage(
 `
-This adaptation algorithm builds a spring model between bounds of queues,
-where the spring constants are all equal and set on startup,
-and the relaxed lengths of the springs are proportional
-to the number of inversions in the accompanying queue.
-This should result in queues where a lot of inversions
-developing longer (more likely to be compressed) springs than their neighbours,
-and pushing their boundaries as a result.
-This adaptation algorithm also requires the max rank,
-as well as a sample size that determines the number of packets considered during rebalancing as a parameter.
-Instantiation: <name>:springh-inversion:${max_rank},${sample_size},${spring_constant}
+See IV/C.
+Instantiation: <name>:springh-inversion:${max_rank},${sample_size},${alpha}
 `)
 AdaptationAlgorithm setup_springh_inversion(string spec) pure {
     import std.conv: to;
     import std.exception: enforce;
     auto pieces = spec.split(',');
     enforce(pieces.length == 3, `invalid arguments`);
-    return new SpringInversionHeuristic(pieces[0].to!ulong, pieces[1].to!ulong, pieces[2].to!double);
+    return new SpringInversionHeuristic(pieces[0].to!long, pieces[1].to!long, pieces[2].to!double);
 }
 
 
@@ -563,16 +591,16 @@ import std;
 
     @("pupd: NSDI '20 example input produces known expected output")
     unittest {
-        const inputs = [4UL, 3, 2, 3];
+        const inputs = [4L, 3, 2, 3];
         immutable expected = [
-            [0UL, 4],
-            [3UL, 4],
-            [2UL, 3],
-            [2UL, 3],
+            [0L, 4],
+            [3L, 4],
+            [2L, 3],
+            [2L, 3],
         ];
 
         auto pupd = setup_pupd("");
-        ulong[] current = [0UL, 0];
+        long[] current = [0L, 0];
         foreach(i, input; inputs) {
             current = pupd.adapt(current, null, input, SimState(), i);
             assert(current == expected[i], format!`%s: %s -> %s`(i, input, current));
@@ -588,14 +616,14 @@ import std;
     unittest {
         const inputs = [4, 3, 2, 3];
         immutable expected = [
-            [0UL, 4],
-            [0UL, 4],
-            [0UL, 4],
-            [0UL, 4],
+            [0L, 4],
+            [0L, 4],
+            [0L, 4],
+            [0L, 4],
         ];
 
-        auto _static = new Static([0UL, 4]);
-        ulong[] current = [0UL, 0];
+        auto _static = new Static([0L, 4]);
+        long[] current = [0L, 0];
         foreach(i, input; inputs) {
             current = _static.adapt(current, null, input, SimState(), i);
             assert(current == expected[i], format!`%s: %s -> %s`(i, input, current));

@@ -11,11 +11,11 @@ import types;
 
 public:
 
-alias CostFunction = double function(Optional!ulong lower, Optional!ulong upper, const PacketCounts byRank) pure;
+alias CostFunction = double function(Optional!long lower, Optional!long upper, const PacketCounts byRank) pure;
 enum Cost;
 
 @Cost
-auto upper_estimate(Optional!ulong lower, Optional!ulong upper, const PacketCounts byRank) @safe pure {
+auto upper_estimate(Optional!long lower, Optional!long upper, const PacketCounts byRank) @safe pure {
     if(lower.empty || upper.empty) return -double.infinity;
     const total = byRank.byValue.sum;
     const P_i =
@@ -27,7 +27,7 @@ auto upper_estimate(Optional!ulong lower, Optional!ulong upper, const PacketCoun
 }
 
 @Cost
-auto exact(Optional!ulong lower, Optional!ulong upper, const PacketCounts byRank) @safe pure {
+auto exact(Optional!long lower, Optional!long upper, const PacketCounts byRank) @safe pure {
     if(lower.empty || upper.empty) return -double.infinity;
 
     const total = byRank.byValue.sum;

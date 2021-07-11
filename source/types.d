@@ -1,3 +1,3 @@
 module types;
 
-alias PacketCounts = ulong[ulong/* rank */];
+alias PacketCounts = long[long/* rank */];
