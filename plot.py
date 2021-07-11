@@ -12,7 +12,7 @@ def main(args):
 
     data_chunked = pd.read_json(source_file, lines=True, chunksize=100000)
     for chunk in data_chunked:
-        chunk['total_inversions'] = np.vectorize(sum)(chunk['inversions'])
+        chunk['total_inversions'] = np.vectorize(sum)(chunk['simOfInversions'])
         chunk.set_index('time')
         by_alg = chunk.groupby('algorithm')
         for (alg, alg_chunk) in by_alg:
