@@ -79,6 +79,21 @@ def main(config) -> None:
 
             with open(output_file, 'w') as output:
                 print(f'pupd-{model_name_suffix}:pupd', file=output)
+
+                # TODO:
+                # generate multiple cases for springh with varying sample sizes
+                # AND varying spring forces.
+                print(
+                    f'springh-{model_name_suffix}:springh-inversion:{n-1},10000,0.5',
+                    file=output
+                )
+
+                # TODO:
+                # generate multiple cases for ABB with varying sample sizes
+                #print(
+                #    f'abb-{model_name_suffix}:abb:{n-1},10000',
+                #    file=output
+                #)
                 # print(
                 #     f'pp-exact-{model_name_suffix}:per-packet:exact,{n-1}',
                 #     file=output
