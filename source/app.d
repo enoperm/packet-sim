@@ -69,7 +69,7 @@ void main(string[] args) {
 
     auto incoming =
         stdin
-        .byLineCopy
+        .byLine
         .map!(line => line.strip)
         .filter!(line => !line.empty)
         .filter!(line => line.all!(c => c.isDigit))
@@ -81,12 +81,12 @@ void main(string[] args) {
         foreach(kvp; config.algorithms.byKeyValue) {
             auto name = kvp.key;
             auto alg = kvp.value;
-            bounds[name] = alg.adapt(bounds[name], countsByRank, packet);
+            bounds[name] = alg.adapt(bounds[name], countsByRank, packet, simStates[name], time);
             simStates[name] = simStates[name].receivePacket(bounds[name], packet);
         }
 
-        auto output = stdout.lockingTextWriter;
         if(time % sampleInterval == 0) {
+            auto output = stdout.lockingTextWriter;
             foreach(alg; config.algorithms.byKey) {
                 emitState(output, time, alg);
             }
@@ -186,11 +186,15 @@ auto configureAlgorithm(string spec) {
     auto algorithmName = pieces[0];
     auto algorithmSettings = pieces[$-1];
 
-
     auto instance = no!AdaptationAlgorithm;
     if(auto alg = algorithmName in algorithmsByName) {
         try { instance = some(alg.constructor(algorithmSettings)); }
         catch(Exception e) { stderr.writefln!`while setting up %s, caught %s`(spec.escapeShellFileName, e); }
+    } else {
+        stderr.writefln!`attempted to instantiate unknown adaptation algorithm %s, available:`(
+            algorithmName.escapeShellFileName
+        );
+        foreach(algName; algorithmsByName.byKey) { stderr.writeln(algName); }
     }
     return instance;
 }
