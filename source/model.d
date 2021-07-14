@@ -191,15 +191,17 @@ private:
     long maxRank;
     long sampleSize;
     double alpha;
+    double sensitivity;
 
     long[] previous;
     double[] previousDelta;
 
 public:
-    this(long maxRank, long sampleSize, double alpha) pure {
+    this(long maxRank, long sampleSize, double alpha, double sensitivity) pure {
         this.maxRank = maxRank;
         this.sampleSize = sampleSize;
         this.alpha = alpha;
+        this.sensitivity = sensitivity;
     }
 
     long[] adapt(const(long[]) currentBounds, const(PacketCounts) byRank, const long receivedRank, in SimState previousState, const ulong time) {
@@ -232,6 +234,7 @@ public:
                 .map!(_ => 0.0)
                 .array;
 
+        debug import std.stdio: stderr;
         auto delta =
             previousState
             .inversions
@@ -250,10 +253,16 @@ public:
             .chain(delta)
             .chain(delta.back.only);
 
-        auto displacement =
+        const scalingFactor = (this.sensitivity * this.maxRank.to!double) / (bounds.length*this.sampleSize);
+        import std.math: round;
+        auto delta_f =
             forces
             .zip(forces.dropOne)
             .map!(tup => tup[1] - tup[0]) // S_{i+1}(r) - S_{i}(l)
+            .map!(delta_f => delta_f * scalingFactor)
+            .tee!(t => { debug stderr.writeln(t); }())
+            .map!round
+            .array
         ;
 
         debug {
@@ -262,14 +271,14 @@ public:
             stderr.writeln("#> ", previousState.inversions);
             stderr.writeln("~> ", delta);
             stderr.writeln("+> ", forces);
-            stderr.writeln("~~ ", displacement);
+            stderr.writeln("~~ ", delta_f);
         }
 
         // do note that the lowest queue bound is always zero,
-        bounds[1..$-1] =
-            bounds[1..$-1]
-            .zip(displacement)
-            .map!(tup => tup[0] + tup[1] * 0.000000000000001)
+        bounds[1..$] =
+            bounds[1..$]
+            .zip(delta_f)
+            .map!(tup => tup[0] + tup[1])
             .map!(b => min(b, this.maxRank).max(1.0))
             .map!(to!long)
             .array;
@@ -574,14 +583,18 @@ AdaptationAlgorithm setup_abb(string spec) pure {
 @Usage(
 `
 See IV/C.
-Instantiation: <name>:springh-inversion:${max_rank},${sample_size},${alpha}
+Instantiation: <name>:springh-inversion:${max_rank},${sample_size},${alpha},${sensitivity}
 `)
 AdaptationAlgorithm setup_springh_inversion(string spec) pure {
     import std.conv: to;
     import std.exception: enforce;
     auto pieces = spec.split(',');
-    enforce(pieces.length == 3, `invalid arguments`);
-    return new SpringInversionHeuristic(pieces[0].to!long, pieces[1].to!long, pieces[2].to!double);
+    enforce(pieces.length == 4, `invalid arguments`);
+    debug {
+        import std;
+        stderr.writeln("AAAAA ", pieces);
+    }
+    return new SpringInversionHeuristic(pieces[0].to!long, pieces[1].to!long, pieces[2].to!double, pieces[3].to!double);
 }
 
 

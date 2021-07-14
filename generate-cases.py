@@ -84,7 +84,7 @@ def main(config) -> None:
                 # generate multiple cases for springh with varying sample sizes
                 # AND varying spring forces.
                 print(
-                    f'springh-{model_name_suffix}:springh-inversion:{n-1},10000,0.5',
+                    f'springh-{model_name_suffix}:springh-inversion:{n-1},10000,0.5,1',
                     file=output
                 )
 
