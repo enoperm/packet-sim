@@ -22,7 +22,7 @@ void main(string[] args) {
         .map!(alg => tuple(alg, SimState(config.queueCount)))
         .assocArray;
 
-    auto bounds =
+    double[][string] bounds =
         config.algorithms
         .byKey
         .map!(alg => tuple(alg, 0.to!double.repeat(config.queueCount).array))

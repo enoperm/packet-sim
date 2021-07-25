@@ -18,7 +18,7 @@ private:
     double alpha;
     double sensitivity;
 
-    long[] previous;
+    long[] previousInversions;
     double[] previousDelta;
 
 public:
@@ -47,13 +47,13 @@ public:
 
         if(time % sampleSize) return bounds;
         scope(exit)
-            this.previous =
+            this.previousInversions =
                 previousState
                 .inversions
                 .dup;
 
-        if(previous.empty)
-            this.previous =
+        if(previousInversions.empty)
+            this.previousInversions =
                 previousState
                 .inversions
                 .map!(_ => 0L)
@@ -69,12 +69,12 @@ public:
         auto delta =
             previousState
             .inversions
-            .zip(this.previous)
+            .zip(this.previousInversions)
             .map!(tup => tup[0] - tup[1])
             .map!(to!double)
             .zip(this.previousDelta)
             // (1 - \alpha) * k_{t}(i-1) + \alpha * k_{t}(i)
-            .map!(tup => (1 - this.alpha) * tup[1] + this.alpha * tup[0])
+            .map!(tup => (1 - this.alpha) * tup[1] + tup[0])
             .array;
 
         scope(exit) this.previousDelta = delta;
@@ -84,7 +84,10 @@ public:
             .chain(delta)
             .chain(delta.back.only);
 
-        const scalingFactor = (this.sensitivity * this.maxRank.to!double) / (bounds.length*this.sampleSize);
+        const scalingFactor =
+            (this.sensitivity * this.maxRank) /
+            (bounds.length.to!double*this.sampleSize);
+
         auto delta_f =
             forces
             .zip(forces.dropOne)
@@ -121,9 +124,13 @@ See IV/C.
 Instantiation: <name>:springh-inversion:${max_rank},${sample_size},${alpha},${sensitivity}
 `)
 AdaptationAlgorithm setup_spring(string spec) pure {
-   import std.conv: to;
-   import std.exception: enforce;
-   auto pieces = spec.split(',');
-   enforce(pieces.length == 4, `invalid arguments`);
-   return new SpringInversionHeuristic(pieces[0].to!long, pieces[1].to!long, pieces[2].to!double, pieces[3].to!double);
+    import std.conv: to;
+    import std.exception: enforce;
+    auto pieces = spec.split(',');
+    enforce(pieces.length == 4, `invalid arguments`);
+    auto maxRank = pieces[0].to!long;
+    auto sampleSize = pieces[1].to!long;
+    auto alpha = pieces[2].to!double;
+    auto sensitivity = pieces[3].to!double;
+    return new SpringInversionHeuristic(maxRank, sampleSize, alpha, sensitivity);
 }
