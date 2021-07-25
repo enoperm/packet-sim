@@ -61,18 +61,19 @@ import std;
 
     @("pupd: NSDI '20 example input produces known expected output")
     unittest {
-        const inputs = [4L, 3, 2, 3];
+        const inputs = [4, 3, 2, 3];
         immutable expected = [
-            [0L, 4],
-            [3L, 4],
-            [2L, 3],
-            [2L, 3],
+            [0.0, 4],
+            [3.0, 4],
+            [2.0, 3],
+            [2.0, 3],
         ];
 
         auto pupd = setup_pupd("");
-        double[] current = [0L, 0];
+        auto current = [0.0, 0];
         foreach(i, input; inputs) {
-            current = pupd.adapt(current, null, input, SimState(), i);
+            auto target = current.lookup(input);
+            current = pupd.adapt(current, null, input, target, SimState(), i);
             assert(current == expected[i], format!`%s: %s -> %s`(i, input, current));
         }
     }

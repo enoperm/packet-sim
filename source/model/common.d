@@ -45,7 +45,7 @@ version(unittest)
 @("queue lookup returns no index when no existing queue could accept the packet")
 unittest
 {
-    const bounds = [2L, 8];
+    const bounds = [2.0, 8];
     const found = bounds.lookup(1);
     assert(found.empty);
 }
@@ -55,7 +55,7 @@ version(unittest)
 unittest
 {
     import std.algorithm: map;
-    const bounds = [2L, 8];
+    const bounds = [2.0, 8];
     const expected = chain(
         no!long .repeat(2),
         some(0L).repeat(6),
@@ -88,7 +88,7 @@ in(lower_bounds.zip(lower_bounds.dropOne).all!(pair => pair[0] <= pair[1]), `bou
 version(unittest)
 @("SimState.receivePacket tracks inversions")
 unittest {
-    const bounds = [2L, 4];
+    const bounds = [2.0, 4];
     auto s = SimState(bounds.length);
 
     s = s.receivePacket(bounds, 0);

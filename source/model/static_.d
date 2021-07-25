@@ -61,16 +61,16 @@ import std;
     unittest {
         const inputs = [4, 3, 2, 3];
         immutable expected = [
-            [0L, 4],
-            [0L, 4],
-            [0L, 4],
-            [0L, 4],
+            [0.0, 4],
+            [0.0, 4],
+            [0.0, 4],
+            [0.0, 4],
         ];
 
         auto _static = new Static([0L, 4]);
-        double[] current = [0L, 0];
+        auto current = [0.0, 0];
         foreach(i, input; inputs) {
-            current = _static.adapt(current, null, input, SimState(), i);
+            current = _static.adapt(current, null, input, some(0L), SimState(), i);
             assert(current == expected[i], format!`%s: %s -> %s`(i, input, current));
         }
     }
