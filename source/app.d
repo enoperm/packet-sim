@@ -110,6 +110,7 @@ auto configure(const(string[]) args) @trusted {
     static struct SimConfig {
         ulong queueCount;
         AdaptationAlgorithm[string] algorithms;
+        QueueLookupFunction[string] lookups;
     }
 
     auto printUsage() @trusted {
@@ -145,12 +146,17 @@ auto configure(const(string[]) args) @trusted {
 
         enforce(name, `must specify algorithm to instantiate`);
 
-        auto alg = configureAlgorithm(spec);
-        if(alg.empty) {
-            stderr.writefln!`failed to instantiate algorithm from %s`(arg.escapeShellFileName);
-            return no!SimConfig;
-        }
-        c.algorithms[name] = alg.front;
+        static foreach(fuzzy; [No.fuzzy, Yes.fuzzy]) {{
+            auto alg = configureAlgorithm(spec);
+            if(alg.empty) {
+                stderr.writefln!`failed to instantiate algorithm from %s`(arg.escapeShellFileName);
+                return no!SimConfig;
+            }
+            enum prefix = (fuzzy ? "fuzzy-" : "");
+            auto prefixedName = prefix ~ name;
+            c.algorithms[prefixedName] = alg.front;
+            c.lookups[prefixedName] = &lookup!fuzzy;
+        }}
     }
 
     return some(c);
@@ -167,7 +173,7 @@ AlgorithmInfo[string] algorithmsByName;
 
 static this() {
     AlgorithmInfo[string] a;
-    foreach(alg; getSymbolsByUDA!(model, model.Algorithm)) {{
+    static foreach(alg; getSymbolsByUDA!(model, model.Algorithm)) {{
         auto name = getUDAs!(alg, model.Algorithm)[$-1].name;
         auto usage = `no usage information available`;
         if(hasUDA!(alg, model.Usage)) {

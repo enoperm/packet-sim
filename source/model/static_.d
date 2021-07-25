@@ -22,7 +22,7 @@ Instantiation: <name>:static:${queue_bounds}
 
 The number of bounds must be the same as the configured number of queues.
 `)
-AdaptationAlgorithm setup_static(string spec) pure {
+AdaptationAlgorithm setup_static_(string spec) pure {
     import std.algorithm: map;
     import std.conv: to;
     import std.string: strip;
@@ -54,7 +54,7 @@ private:
 import std;
     @("static: setup function parses queue bounds")
     unittest {
-        assert(setup_static("0,4"));
+        assert(setup_static_("0,4"));
     }
 
     @("static: algorithm always sets the same bounds")

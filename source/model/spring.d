@@ -11,12 +11,22 @@ public import model.common;
 public:
 @safe:
 
-final class Static : AdaptationAlgorithm {
+final class SpringInversionHeuristic : AdaptationAlgorithm, QueueBoundsInitialization {
 private:
-    const(double[]) bounds;
+    long maxRank;
+    long sampleSize;
+    double alpha;
+    double sensitivity;
+
+    long[] previous;
+    double[] previousDelta;
+
 public:
-    this(double[] bounds) pure {
-        this.bounds = bounds;
+    this(long maxRank, long sampleSize, double alpha, double sensitivity) pure {
+        this.maxRank = maxRank;
+        this.sampleSize = sampleSize;
+        this.alpha = alpha;
+        this.sensitivity = sensitivity;
     }
 
     double[] adapt(
@@ -26,24 +36,94 @@ public:
         const Optional!long targetQueue,
         in SimState previousState,
         const ulong time
-    ) pure {
-        return this.bounds.dup;
+    ) {
+        import std.conv: to;
+        import std.algorithm;
+        import std.array;
+        import std.typecons: Tuple, tuple;
+
+
+        auto bounds = currentBounds.dup;
+
+        if(time % sampleSize) return bounds;
+        scope(exit)
+            this.previous =
+                previousState
+                .inversions
+                .dup;
+
+        if(previous.empty)
+            this.previous =
+                previousState
+                .inversions
+                .map!(_ => 0L)
+                .array;
+
+        if(previousDelta.empty)
+            this.previousDelta =
+                previousState
+                .inversions
+                .map!(_ => 0.0)
+                .array;
+
+        auto delta =
+            previousState
+            .inversions
+            .zip(this.previous)
+            .map!(tup => tup[0] - tup[1])
+            .map!(to!double)
+            .zip(this.previousDelta)
+            // (1 - \alpha) * k_{t}(i-1) + \alpha * k_{t}(i)
+            .map!(tup => (1 - this.alpha) * tup[1] + this.alpha * tup[0])
+            .array;
+
+        scope(exit) this.previousDelta = delta;
+
+        auto forces =
+            delta.front.only
+            .chain(delta)
+            .chain(delta.back.only);
+
+        const scalingFactor = (this.sensitivity * this.maxRank.to!double) / (bounds.length*this.sampleSize);
+        auto delta_f =
+            forces
+            .zip(forces.dropOne)
+            .map!(tup => tup[1] - tup[0]) // S_{i+1}(r) - S_{i}(l)
+            .map!(delta_f => delta_f * scalingFactor)
+            .array
+        ;
+
+        // do note that the lowest queue bound is always zero,
+        bounds[1..$] =
+            bounds[1..$]
+            .zip(delta_f)
+            .map!(tup => tup[0] + tup[1])
+            .map!(b => min(b, this.maxRank).max(1.0))
+            .map!(to!double)
+            .array;
+        bounds[0] = 0;
+
+        // since we do not otherwise ensure that bounds to not "swap places" with each other,
+        // let's sort them before returning.
+        // this should be roughly equivalent to having elastic collisions between the bounds.
+        sort(bounds);
+
+        return bounds;
     }
+
+    mixin UniformBoundsInitialization!(instance => instance.maxRank);
 }
-@Algorithm("static")
+
+@Algorithm(`springh-inversion`)
 @Usage(
 `
-An "adaptation algorithm" that always keeps queue bounds at their initially configured values.
-This adaptation algorithm requires you to configure queue bounds manually.
-Instantiation: <name>:static:${queue_bounds}
-    where ${queue_bounds} is a comma-separated list of bounds.
-    example: 1,2,4
-
-The number of bounds must be the same as the configured number of queues.
+See IV/C.
+Instantiation: <name>:springh-inversion:${max_rank},${sample_size},${alpha},${sensitivity}
 `)
-AdaptationAlgorithm setup_static(string spec) pure {
-    import std.algorithm: map;
-    import std.conv: to;
-    import std.string: strip;
-    return new Static(spec.split(',').map!strip.map!(to!double).array);
+AdaptationAlgorithm setup_spring(string spec) pure {
+   import std.conv: to;
+   import std.exception: enforce;
+   auto pieces = spec.split(',');
+   enforce(pieces.length == 4, `invalid arguments`);
+   return new SpringInversionHeuristic(pieces[0].to!long, pieces[1].to!long, pieces[2].to!double, pieces[3].to!double);
 }

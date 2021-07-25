@@ -3,6 +3,7 @@ module model.common;
 import std.range;
 import std.algorithm;
 import std.random;
+import std.typecons: Flag, Yes, No;
 
 import optional;
 
@@ -14,7 +15,10 @@ alias PacketCounts = long[long/* rank */];
 struct Algorithm { string name; }
 struct Usage { string text; }
 
+alias QueueLookupFunction = Optional!long function(const(double[]) bounds, const(long) rank);
+
 struct SimState {
+public:
     long[] sumOfInversions;
     long[] inversions;
     long[] lastInQueue;
@@ -29,16 +33,38 @@ struct SimState {
     }
 }
 
-auto lookup(const(double[]) lower_bounds, const(long) rank)
+auto lookup(Flag!"fuzzy" fuzzy = No.fuzzy)(const(double[]) lower_bounds, const(long) rank)
 in(lower_bounds.length > 0)
 out(index; index.empty || index.front < lower_bounds.length && index.front >= 0)
 out(index; index.empty || lower_bounds[index.front] <= rank)
 {
     import std.conv: to;
+    auto target = no!long;
+    version(none)
+    static if(fuzzy)
+        auto delta = 0.0;
+
     foreach(i, const b; lower_bounds.enumerate.retro) if(b <= rank) {
-        return some(i.to!long);
+        target = some(i.to!long);
+        version(none)
+        static if(fuzzy) if(i + 1 < lower_bounds.length) {
+            delta = lower_bounds[i+1] - rank;
+        }
+        break;
     }
-    return no!long;
+
+    version(none)
+    static if(fuzzy) {
+        if(delta <= 1.0) {
+            import std.random: uniform01;
+            auto spilloverProbablity = 1.0 - delta;
+            auto roll = uniform01();
+            int bump = roll < spilloverProbablity;
+            target += bump;
+        }
+    }
+
+    return target;
 }
 
 version(unittest)
@@ -62,6 +88,22 @@ unittest
         some(1L).repeat(2),
     ).array;
     const got = iota(10).map!(p => bounds.lookup(p)).array;
+
+    assert(expected == got);
+}
+
+version(unittest)
+@("in the integer bounds case, fuzzy queue lookup matches the deterministic behaviour")
+unittest
+{
+    import std.algorithm: map;
+    const bounds = [2.0, 8];
+    const expected = chain(
+        no!long .repeat(2),
+        some(0L).repeat(6),
+        some(1L).repeat(2),
+    ).array;
+    const got = iota(10).map!(p => bounds.lookup!(Yes.fuzzy)(p)).array;
 
     assert(expected == got);
 }
