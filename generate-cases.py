@@ -80,11 +80,14 @@ def main(config) -> None:
             with open(output_file, 'w') as output:
                 print(f'pupd-{model_name_suffix}:pupd', file=output)
 
+                alpha = 0.0
+                sensitivity = 1.0
+
                 # TODO:
                 # generate multiple cases for springh with varying sample sizes
                 # AND varying spring forces.
                 print(
-                    f'springh-{model_name_suffix}:springh-inversion:{n-1},10000,0.5,1',
+                    f'springh-{model_name_suffix}:springh-inversion:{n-1},10000,{alpha},{sensitivity}',
                     file=output
                 )
 
