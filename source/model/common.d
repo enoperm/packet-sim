@@ -36,36 +36,36 @@ public:
 auto lookup(Flag!"fuzzy" fuzzy = No.fuzzy)(const(double[]) lower_bounds, const(long) rank)
 in(lower_bounds.length > 0)
 out(index; index.empty || index.front < lower_bounds.length && index.front >= 0)
-out(index; index.empty || lower_bounds[index.front] <= rank)
+out(index; index.empty || lower_bounds[index.front] <= rank + (fuzzy ? 1 : 0))
 {
     import std.conv: to;
     auto target = no!long;
-    version(none)
     static if(fuzzy)
         auto delta = 0.0;
 
     foreach(i, const b; lower_bounds.enumerate.retro) if(b <= rank) {
         target = some(i.to!long);
-        version(none)
         static if(fuzzy) if(i + 1 < lower_bounds.length) {
             delta = lower_bounds[i+1] - rank;
         }
         break;
     }
 
-    version(none)
     static if(fuzzy) {
-        if(delta <= 1.0) {
+        if(!target.empty && delta <= 1.0) {
             import std.random: uniform01;
             auto spilloverProbablity = 1.0 - delta;
             auto roll = uniform01();
             int bump = roll < spilloverProbablity;
+            bump &= (target.front + 1) < lower_bounds.length;
             target += bump;
         }
     }
 
     return target;
 }
+
+alias lookupFuzzy = lookup!(Yes.fuzzy);
 
 version(unittest)
 @("queue lookup returns no index when no existing queue could accept the packet")
@@ -103,17 +103,15 @@ unittest
         some(0L).repeat(6),
         some(1L).repeat(2),
     ).array;
-    const got = iota(10).map!(p => bounds.lookup!(Yes.fuzzy)(p)).array;
+    const got = iota(10).map!(p => bounds.lookupFuzzy(p)).array;
 
     assert(expected == got);
 }
 
-SimState receivePacket(SimState sim, const(double[]) lower_bounds, long rank) pure @safe
+SimState receivePacket(SimState sim, const(double[]) lower_bounds, long rank, long target) pure @safe
 in(lower_bounds.length > 0, `some bounds shall be given`)
 in(lower_bounds.zip(lower_bounds.dropOne).all!(pair => pair[0] <= pair[1]), `bounds shall be in increasing order`)
 {
-    const target = lower_bounds.lookup(rank).or(some(0L)).front;
-
     SimState next = sim;
     with(next) {
         const diff =
@@ -127,34 +125,56 @@ in(lower_bounds.zip(lower_bounds.dropOne).all!(pair => pair[0] <= pair[1]), `bou
     return next;
 }
 
-version(unittest)
-@("SimState.receivePacket tracks inversions")
-unittest {
-    const bounds = [2.0, 4];
-    auto s = SimState(bounds.length);
+version(unittest) {
+    @("SimState.receivePacket tracks inversions")
+    unittest {
+        const bounds = [2.0, 4];
+        auto s = SimState(bounds.length);
 
-    s = s.receivePacket(bounds, 0);
-    s = s.receivePacket(bounds, 1);
+        s = s.receivePacket(bounds, 0, 0);
+        s = s.receivePacket(bounds, 1, 0);
 
-    assert(s.inversions == [0, 0], `no inversion within queue`);
-    assert(s.sumOfInversions == [0, 0], `no inversion within queue`);
+        assert(s.inversions == [0, 0], `no inversion within queue`);
+        assert(s.sumOfInversions == [0, 0], `no inversion within queue`);
 
-    s = s.receivePacket(bounds, 3);
-    s = s.receivePacket(bounds, 1);
+        s = s.receivePacket(bounds, 3, 0);
+        s = s.receivePacket(bounds, 1, 0);
 
-    assert(s.inversions == [1, 0], `inversion within queue`);
-    assert(s.sumOfInversions == [2, 0], `inversion within queue`);
+        assert(s.inversions == [1, 0], `inversion within queue`);
+        assert(s.sumOfInversions == [2, 0], `inversion within queue`);
 
-    s = s.receivePacket(bounds, 1);
+        s = s.receivePacket(bounds, 1, 0);
 
-    assert(s.inversions == [1, 0], `further packets of same rank do not count as individual inversion`);
-    assert(s.sumOfInversions == [2, 0], `further packets of same rank do not count as individual inversion`);
+        assert(s.inversions == [1, 0], `further packets of same rank do not count as individual inversion`);
+        assert(s.sumOfInversions == [2, 0], `further packets of same rank do not count as individual inversion`);
 
-    s = s.receivePacket(bounds, 4);
-    s = s.receivePacket(bounds, 1);
+        s = s.receivePacket(bounds, 4, 1);
+        s = s.receivePacket(bounds, 1, 0);
 
-    assert(s.inversions == [1, 0], `no inversion across queues`);
-    assert(s.sumOfInversions == [2, 0], `no inversion across queues`);
+        assert(s.inversions == [1, 0], `no inversion across queues`);
+        assert(s.sumOfInversions == [2, 0], `no inversion across queues`);
+    }
+
+    @("Fuzzy lookup uses the fractional part of the next lowest bound as probability of spillover")
+    unittest {
+        import std;
+
+        const bounds = [0.0, 1.5];
+
+        ulong[2] counts;
+        auto input =
+            iota(10000)
+            .map!(_ => 1);
+
+        foreach(const i; input) {
+            const target = bounds.lookupFuzzy(i).front;
+            counts[target]++;
+        }
+
+        enum epsilon = 0.01;
+        sort(counts[]);
+        assert((counts.back / counts.front - 1) <= epsilon);
+    }
 }
 
 interface AdaptationAlgorithm {

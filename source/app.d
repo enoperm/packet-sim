@@ -83,9 +83,10 @@ void main(string[] args) {
         foreach(kvp; config.algorithms.byKeyValue) {
             auto name = kvp.key;
             auto alg = kvp.value;
-            auto target = config.lookups[name](bounds[name], packet);
+            static const lowestPriorityQueue = some(0L);
+            const target = config.lookups[name](bounds[name], packet);
             bounds[name] = alg.adapt(bounds[name], countsByRank, packet, target, simStates[name], time);
-            simStates[name] = simStates[name].receivePacket(bounds[name], packet);
+            simStates[name] = simStates[name].receivePacket(bounds[name], packet, target.or(lowestPriorityQueue).front);
         }
 
         if(time % sampleInterval == 0) {
@@ -155,7 +156,7 @@ auto configure(const(string[]) args) @trusted {
             enum prefix = (fuzzy ? "fuzzy-" : "");
             auto prefixedName = prefix ~ name;
             c.algorithms[prefixedName] = alg.front;
-            c.lookups[prefixedName] = &lookup!fuzzy;
+            c.lookups[prefixedName] = &lookupFuzzy;
         }}
     }
 
