@@ -37,6 +37,7 @@ void main(string[] args) {
             ulong time;
             string algorithm;
             double[] bounds;
+            long[long] receivedByRank;
             static foreach(memName; FieldNameTuple!SimState) {
                 mixin(q{
                     %s %s;
@@ -47,6 +48,7 @@ void main(string[] args) {
             time: t,
             algorithm: selector,
             bounds: bounds[selector],
+            receivedByRank: countsByRank,
         };
         static foreach(memName; FieldNameTuple!SimState) {
             mixin(q{
